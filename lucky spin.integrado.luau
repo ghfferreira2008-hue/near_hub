@@ -34,11 +34,13 @@ local function parentScreenGui(gui)
     end
 end
 
+local DISPLAY_WINDOW_TITLE = "Near Hub | Premium"
+local SAFE_WINDOW_TITLE = "Near Hub Premium"
 local guisBeforeWindow = snapshotScreenGuis()
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "Near Hub | Premium",
+    Title = SAFE_WINDOW_TITLE,
     Author = "by moonz",
     Icon = "rbxassetid://75575297806121",
     Size = UDim2.fromOffset(500, 400)
@@ -74,11 +76,43 @@ local function findHubScreenGui()
     return nil
 end
 
-local function setHubVisible(visible)
-    hubVisible = visible
+
+local function applyDisplayWindowTitle()
+    task.spawn(function()
+        for _ = 1, 30 do
+            local gui = findHubScreenGui()
+            if gui then
+                for _, descendant in ipairs(gui:GetDescendants()) do
+                    if descendant:IsA("TextLabel") or descendant:IsA("TextButton") or descendant:IsA("TextBox") then
+                        local text = descendant.Text
+                        if text and string.find(text, SAFE_WINDOW_TITLE, 1, true) then
+                            descendant.Text = string.gsub(text, SAFE_WINDOW_TITLE, DISPLAY_WINDOW_TITLE)
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+local function toggleHubWindow()
+    local toggled = false
+
+    if Window then
+        toggled = pcall(function()
+            Window:Toggle()
+        end)
+    end
+
+    hubVisible = not hubVisible
+
+    if toggled then
+        return
+    end
+
     local gui = findHubScreenGui()
     if gui then
-        gui.Enabled = visible
+        gui.Enabled = hubVisible
     end
 end
 
@@ -159,11 +193,12 @@ local function createToggleButton()
         if movedDuringDrag then
             return
         end
-        setHubVisible(not hubVisible)
+        toggleHubWindow()
     end)
 end
 
 createToggleButton()
+applyDisplayWindowTitle()
 local licenseUnlocked = false
 local mainTabsCreated = false
 local lastLicenseCheck = 0

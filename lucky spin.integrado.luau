@@ -1,7 +1,7 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
-local WHITELIST_URL = "http://127.0.0.1:3000/api/whitelist/check"
+local KEY_VERIFY_URL = "http://127.0.0.1:3000/api/keys/verify"
 local EXECUTE_LOG_URL = "http://127.0.0.1:3000/api/logs/execute"
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -33,10 +33,39 @@ local function notify(title, content)
     warn(string.format("[%s] %s", title, content))
 end
 
+local function getProvidedKey()
+    local key = nil
+
+    pcall(function()
+        if getgenv then
+            key = getgenv().script_key
+        end
+    end)
+
+    if (not key or tostring(key) == "") and script_key then
+        key = script_key
+    end
+
+    key = tostring(key or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if key == "" then
+        return nil
+    end
+
+    return key
+end
+
+local currentKey = getProvidedKey()
+
 local function verifyWhitelist()
+    currentKey = getProvidedKey()
+    if not currentKey then
+        return false, "invalid key"
+    end
+
     local url = string.format(
-        "%s?robloxUserId=%s&robloxUsername=%s&user=%s",
-        WHITELIST_URL,
+        "%s?key=%s&robloxUserId=%s&robloxUsername=%s&user=%s",
+        KEY_VERIFY_URL,
+        HttpService:UrlEncode(currentKey),
         HttpService:UrlEncode(tostring(player.UserId)),
         HttpService:UrlEncode(player.Name),
         HttpService:UrlEncode(player.Name)
@@ -47,7 +76,7 @@ local function verifyWhitelist()
     end)
 
     if not ok then
-        return false, "Falha ao consultar a whitelist. Confira a URL e o servidor."
+        return false, "invalid key"
     end
 
     local decodedOk, data = pcall(function()
@@ -55,14 +84,35 @@ local function verifyWhitelist()
     end)
 
     if not decodedOk or type(data) ~= "table" then
-        return false, "A API respondeu algo invalido."
+        return false, "invalid key"
     end
 
     if not data.ok then
-        return false, data.message or "Acesso nao liberado."
+        return false, "invalid key"
     end
 
     return true, data
+end
+
+local function formatKeyTime(result)
+    if result.durationType == "permanente" or result.expiresAt == nil then
+        return "Permanente"
+    end
+
+    local remaining = tonumber(result.remainingSeconds) or 0
+    local days = math.floor(remaining / 86400)
+    local hours = math.floor((remaining % 86400) / 3600)
+    local minutes = math.floor((remaining % 3600) / 60)
+
+    if days > 0 then
+        return string.format("%dd %dh %dm", days, hours, minutes)
+    end
+
+    if hours > 0 then
+        return string.format("%dh %dm", hours, minutes)
+    end
+
+    return string.format("%dm", minutes)
 end
 
 local function getExecutorName()
@@ -360,46 +410,40 @@ local AccessTab = Window:Tab({
 })
 
 AccessTab:Button({
-    Title = "Mostrar meu UserId",
-    Desc = "Use este numero no Discord ao fazer claim da key",
-    Icon = "badge-info",
-    Callback = function()
-        notify("Whitelist", "Seu Roblox UserId: " .. tostring(player.UserId))
-    end
-})
-
-AccessTab:Button({
-    Title = "Checar acesso",
-    Desc = "Consulta a whitelist vinculada ao seu UserId",
+    Title = "Checar Key",
+    Desc = "Mostra quanto tempo ainda falta na sua key",
     Icon = "shield-check",
     Callback = function()
         local ok, result = verifyWhitelist()
         if not ok then
-            notify("Whitelist", result)
+            notify("Whitelist", "invalid key")
             return
         end
 
         licenseUnlocked = true
         lastLicenseCheck = os.clock()
-        sendExecuteLog(result.code)
         createProtectedTabs()
-        notify("Whitelist", "Acesso liberado ate: " .. tostring(result.expiresAt))
+        notify("Whitelist", "Tempo restante: " .. formatKeyTime(result))
     end
 })
 
 task.defer(function()
     local ok, result = verifyWhitelist()
     if not ok then
-        notify("Whitelist", result)
+        player:Kick("invalid key")
         return
     end
 
     licenseUnlocked = true
     lastLicenseCheck = os.clock()
-    sendExecuteLog(result.code)
     createProtectedTabs()
-    notify("Whitelist", "Acesso liberado ate: " .. tostring(result.expiresAt))
 end)
+
+
+
+
+
+
 
 
 

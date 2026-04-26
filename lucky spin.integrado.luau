@@ -1,23 +1,173 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 
 local KEY_VERIFY_URL = "https://near-hub-api.squareweb.app/api/keys/verify"
 local EXECUTE_LOG_URL = "https://near-hub-api.squareweb.app/api/logs/execute"
 
+local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local playerGui = player:WaitForChild("PlayerGui")
+
+local function getGuiContainers()
+    return { CoreGui, playerGui }
+end
+
+local function snapshotScreenGuis()
+    local snapshot = {}
+    for _, container in ipairs(getGuiContainers()) do
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("ScreenGui") then
+                snapshot[child] = true
+            end
+        end
+    end
+    return snapshot
+end
+
+local function parentScreenGui(gui)
+    local ok = pcall(function()
+        gui.Parent = CoreGui
+    end)
+    if not ok then
+        gui.Parent = playerGui
+    end
+end
+
+local guisBeforeWindow = snapshotScreenGuis()
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "W hub (private)",
+    Title = "Near Hub | Premium",
     Author = "by moonz",
-    Icon = "grid-3x3",
+    Icon = "rbxassetid://75575297806121",
     Size = UDim2.fromOffset(500, 400)
 })
 
+local hubScreenGui = nil
+local hubVisible = true
+
+local function findHubScreenGui()
+    if hubScreenGui and hubScreenGui.Parent then
+        return hubScreenGui
+    end
+
+    for _, container in ipairs(getGuiContainers()) do
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("ScreenGui") and not guisBeforeWindow[child] and child.Name ~= "NearHubToggleGui" then
+                hubScreenGui = child
+                return hubScreenGui
+            end
+        end
+    end
+
+    for _, container in ipairs(getGuiContainers()) do
+        for _, child in ipairs(container:GetChildren()) do
+            local name = string.lower(child.Name)
+            if child:IsA("ScreenGui") and child.Name ~= "NearHubToggleGui" and (string.find(name, "wind") or string.find(name, "near")) then
+                hubScreenGui = child
+                return hubScreenGui
+            end
+        end
+    end
+
+    return nil
+end
+
+local function setHubVisible(visible)
+    hubVisible = visible
+    local gui = findHubScreenGui()
+    if gui then
+        gui.Enabled = visible
+    end
+end
+
+local function createToggleButton()
+    local toggleGui = Instance.new("ScreenGui")
+    toggleGui.Name = "NearHubToggleGui"
+    toggleGui.ResetOnSpawn = false
+    toggleGui.IgnoreGuiInset = true
+    toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    parentScreenGui(toggleGui)
+
+    local button = Instance.new("ImageButton")
+    button.Name = "NearHubToggleButton"
+    button.Size = UDim2.fromOffset(56, 56)
+    button.Position = UDim2.fromOffset(18, 160)
+    button.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
+    button.BackgroundTransparency = 0.12
+    button.BorderSizePixel = 0
+    button.Image = "rbxassetid://74589842007874"
+    button.ScaleType = Enum.ScaleType.Fit
+    button.AutoButtonColor = true
+    button.ZIndex = 50
+    button.Parent = toggleGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = button
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Transparency = 0.35
+    stroke.Thickness = 1
+    stroke.Parent = button
+
+    local dragging = false
+    local dragInput = nil
+    local dragStart = nil
+    local startPosition = nil
+    local movedDuringDrag = false
+
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            movedDuringDrag = false
+            dragStart = input.Position
+            startPosition = button.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    button.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            local delta = input.Position - dragStart
+            if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
+                movedDuringDrag = true
+            end
+            button.Position = UDim2.new(
+                startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    button.Activated:Connect(function()
+        if movedDuringDrag then
+            return
+        end
+        setHubVisible(not hubVisible)
+    end)
+end
+
+createToggleButton()
 local licenseUnlocked = false
 local mainTabsCreated = false
 local lastLicenseCheck = 0
 local licenseCheckInterval = 60
-local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local executionLogged = false
 
 local function notify(title, content)

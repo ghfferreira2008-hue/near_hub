@@ -2,6 +2,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
 local WHITELIST_URL = "http://127.0.0.1:3000/api/whitelist/check"
+local EXECUTE_LOG_URL = "http://127.0.0.1:3000/api/logs/execute"
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
@@ -17,6 +18,7 @@ local mainTabsCreated = false
 local lastLicenseCheck = 0
 local licenseCheckInterval = 60
 local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local executionLogged = false
 
 local function notify(title, content)
     if WindUI and WindUI.Notify then
@@ -61,6 +63,47 @@ local function verifyWhitelist()
     end
 
     return true, data
+end
+
+local function getExecutorName()
+    local ok, result = pcall(function()
+        if identifyexecutor then
+            return identifyexecutor()
+        end
+
+        return "Unknown"
+    end)
+
+    if ok and result then
+        return tostring(result)
+    end
+
+    return "Unknown"
+end
+
+local function sendExecuteLog(keyCode)
+    if executionLogged then
+        return
+    end
+
+    executionLogged = true
+
+    local payload = {
+        robloxUsername = player.Name,
+        robloxUserId = tostring(player.UserId),
+        key = keyCode or "n/a",
+        executor = getExecutorName()
+    }
+
+    task.spawn(function()
+        pcall(function()
+            HttpService:PostAsync(
+                EXECUTE_LOG_URL,
+                HttpService:JSONEncode(payload),
+                Enum.HttpContentType.ApplicationJson
+            )
+        end)
+    end)
 end
 
 local function canUseProtectedFeature()
@@ -276,6 +319,7 @@ AccessTab:Button({
         licenseUnlocked = true
         lastLicenseCheck = os.clock()
         createProtectedTabs()
+        sendExecuteLog(result.code)
         notify("Whitelist", "Acesso liberado ate: " .. tostring(result.expiresAt))
     end
 })
@@ -290,5 +334,10 @@ task.defer(function()
     licenseUnlocked = true
     lastLicenseCheck = os.clock()
     createProtectedTabs()
+    sendExecuteLog(result.code)
     notify("Whitelist", "Acesso liberado ate: " .. tostring(result.expiresAt))
 end)
+
+
+
+

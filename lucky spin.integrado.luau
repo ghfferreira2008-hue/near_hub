@@ -81,12 +81,30 @@ local function getExecutorName()
     return "Unknown"
 end
 
+local function getRequestFunction()
+    if syn and syn.request then
+        return syn.request
+    end
+
+    if http and http.request then
+        return http.request
+    end
+
+    if http_request then
+        return http_request
+    end
+
+    if request then
+        return request
+    end
+
+    return nil
+end
+
 local function sendExecuteLog(keyCode)
     if executionLogged then
         return
     end
-
-    executionLogged = true
 
     local payload = {
         robloxUsername = player.Name,
@@ -95,14 +113,59 @@ local function sendExecuteLog(keyCode)
         executor = getExecutorName()
     }
 
+    local jsonPayload = HttpService:JSONEncode(payload)
+
     task.spawn(function()
-        pcall(function()
+        local requestFunction = getRequestFunction()
+        if requestFunction then
+            local requestOk = pcall(function()
+                requestFunction({
+                    Url = EXECUTE_LOG_URL,
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    },
+                    Body = jsonPayload
+                })
+            end)
+
+            if requestOk then
+                executionLogged = true
+                return
+            end
+        end
+
+        local postOk = pcall(function()
             HttpService:PostAsync(
                 EXECUTE_LOG_URL,
-                HttpService:JSONEncode(payload),
+                jsonPayload,
                 Enum.HttpContentType.ApplicationJson
             )
         end)
+
+        if postOk then
+            executionLogged = true
+            return
+        end
+
+        local fallbackUrl = string.format(
+            "%s?robloxUsername=%s&robloxUserId=%s&key=%s&executor=%s",
+            EXECUTE_LOG_URL,
+            HttpService:UrlEncode(payload.robloxUsername),
+            HttpService:UrlEncode(payload.robloxUserId),
+            HttpService:UrlEncode(payload.key),
+            HttpService:UrlEncode(payload.executor)
+        )
+
+        local getOk = pcall(function()
+            return game:HttpGet(fallbackUrl)
+        end)
+
+        if getOk then
+            executionLogged = true
+        else
+            warn("[Near Hub] Nao foi possivel enviar o log de execucao.")
+        end
     end)
 end
 
@@ -318,8 +381,8 @@ AccessTab:Button({
 
         licenseUnlocked = true
         lastLicenseCheck = os.clock()
-        createProtectedTabs()
         sendExecuteLog(result.code)
+        createProtectedTabs()
         notify("Whitelist", "Acesso liberado ate: " .. tostring(result.expiresAt))
     end
 })
@@ -333,10 +396,12 @@ task.defer(function()
 
     licenseUnlocked = true
     lastLicenseCheck = os.clock()
-    createProtectedTabs()
     sendExecuteLog(result.code)
+    createProtectedTabs()
     notify("Whitelist", "Acesso liberado ate: " .. tostring(result.expiresAt))
 end)
+
+
 
 
 

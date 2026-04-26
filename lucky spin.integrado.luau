@@ -1,4 +1,4 @@
-﻿local HttpService = game:GetService("HttpService")
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
 local KEY_VERIFY_URL = "https://near-hub-api.squareweb.app/api/keys/verify"

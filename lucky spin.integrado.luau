@@ -1,8 +1,8 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
-local KEY_VERIFY_URL = "http://127.0.0.1:3000/api/keys/verify"
-local EXECUTE_LOG_URL = "http://127.0.0.1:3000/api/logs/execute"
+local KEY_VERIFY_URL = "https://near-hub-api.squareweb.app/api/keys/verify"
+local EXECUTE_LOG_URL = "https://near-hub-api.squareweb.app/api/logs/execute"
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 

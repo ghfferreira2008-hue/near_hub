@@ -1,4 +1,4 @@
-local HttpService = game:GetService("HttpService")
+﻿local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
 local KEY_VERIFY_URL = "https://near-hub-api.squareweb.app/api/keys/verify"
@@ -59,7 +59,8 @@ local currentKey = getProvidedKey()
 local function verifyWhitelist()
     currentKey = getProvidedKey()
     if not currentKey then
-        return false, "invalid key"
+        warn("[Near Hub] nenhuma script_key foi encontrada antes da verificacao")
+        return false, "invalid key", "missing_script_key"
     end
 
     local url = string.format(
@@ -71,12 +72,14 @@ local function verifyWhitelist()
         HttpService:UrlEncode(player.Name)
     )
 
+    warn("[Near Hub] verificando key na API: " .. KEY_VERIFY_URL)
+
     local ok, response = pcall(function()
         return game:HttpGet(url)
     end)
 
     if not ok then
-        return false, "invalid key"
+        return false, "invalid key", "http_failed", tostring(response)
     end
 
     local decodedOk, data = pcall(function()
@@ -84,11 +87,11 @@ local function verifyWhitelist()
     end)
 
     if not decodedOk or type(data) ~= "table" then
-        return false, "invalid key"
+        return false, "invalid key", "json_decode_failed", tostring(response)
     end
 
     if not data.ok then
-        return false, "invalid key"
+        return false, "invalid key", data.state or "api_rejected", data.message or "n/a"
     end
 
     return true, data
@@ -414,8 +417,9 @@ AccessTab:Button({
     Desc = "Mostra quanto tempo ainda falta na sua key",
     Icon = "shield-check",
     Callback = function()
-        local ok, result = verifyWhitelist()
+        local ok, result, reason, detail = verifyWhitelist()
         if not ok then
+            warn("[Near Hub] invalid key: " .. tostring(reason) .. " | " .. tostring(detail))
             notify("Whitelist", "invalid key")
             return
         end
@@ -428,8 +432,9 @@ AccessTab:Button({
 })
 
 task.defer(function()
-    local ok, result = verifyWhitelist()
+    local ok, result, reason, detail = verifyWhitelist()
     if not ok then
+        warn("[Near Hub] invalid key: " .. tostring(reason) .. " | " .. tostring(detail))
         player:Kick("invalid key")
         return
     end
@@ -438,6 +443,11 @@ task.defer(function()
     lastLicenseCheck = os.clock()
     createProtectedTabs()
 end)
+
+
+
+
+
 
 
 
